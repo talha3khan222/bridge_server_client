@@ -2,3 +2,5 @@ venv
 build
 dist
 .config
+main.spec
+.idea
