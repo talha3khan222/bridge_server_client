@@ -4,3 +4,4 @@ dist
 .config
 main.spec
 .idea
+__py
