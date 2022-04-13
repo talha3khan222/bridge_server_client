@@ -1,37 +1,35 @@
 import os
 import requests
-from .config import BaseConfig
+from .config import BaseConfig, ClientException
 from .streamer import Streamer
 import multiprocessing
 
 
 class BridgeServerClient(BaseConfig):
-    _config = None
     processes = []
 
-    def __init__(self):
-        self._process_configuration_file()
+    def __init__(self, credentials):
+        super(BridgeServerClient, self).__init__(credentials)
         self._serve_stream_process()
 
-    def _process_configuration_file(self):
-        assert os.path.exists(self._config_file_path), "Config file not found"
-        with open(self._config_file_path, 'r') as file:
-            self._config = self._process_configuration_blocks(file.readlines())
-
-    def _fetch_stream_config_from_server(self, config_data):
-        identifier = config_data["IDENTIFIER"]
-        response = requests.get(self._server_address, params={"id": identifier})
-        assert response.status_code == 200, f"Server Validation Error: Camera '{identifier}'"
-        return response.json()
+    def _update_instance_address_on_server(self, identifier):
+        endpoint = f'{self._bridge_server_address}/client/{identifier}/address/'
+        headers = {'secret-key': self._server_secret}
+        response = requests.post(endpoint, data=self._client_address, headers=headers)
+        print("Address Update:", identifier, response.status_code)
 
     def _serve_stream_to_server(self, camera_config):
-        server_config = self._fetch_stream_config_from_server(camera_config)
-        Streamer(camera_config, server_config)
+        self._update_instance_address_on_server(camera_config["bridge_server_instance_id"])
+        Streamer(camera_config)
 
     def _serve_stream_process(self):
-        for config_block in self._config:
+        _, data = self._fetch_all_local_cameras()
+        if not _:
+            raise ClientException(data)
+        print("__________________Local Cameras_____________________", *(i["label_name"] for i in data), sep="\n")
+        for config in data:
             self.processes.append(
-                multiprocessing.Process(target=self._serve_stream_to_server, args=(config_block,), daemon=True))
+                multiprocessing.Process(target=self._serve_stream_to_server, args=(config,), daemon=True))
         for process in self.processes:
             process.start()
         for process in self.processes:
